@@ -13,7 +13,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc,
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 enum Event {
@@ -28,6 +28,8 @@ enum Job {
     Replay(PathBuf),
 }
 struct App {
+    smoke_test: bool,
+    started: Instant,
     input: String,
     output: String,
     title: String,
@@ -54,6 +56,8 @@ struct App {
 impl Default for App {
     fn default() -> Self {
         Self {
+            smoke_test: false,
+            started: Instant::now(),
             input: String::new(),
             output: String::new(),
             title: String::new(),
@@ -654,6 +658,12 @@ impl App {
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.poll();
+        if self.smoke_test {
+            ctx.request_repaint_after(Duration::from_millis(50));
+            if self.started.elapsed() > Duration::from_millis(800) {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+        }
         if self.receiver.is_none() {
             ctx.input(|i| {
                 if let Some(path) = i.raw.dropped_files.iter().find_map(|f| f.path.as_ref()) {
@@ -727,14 +737,29 @@ fn main() -> eframe::Result<()> {
             .with_min_inner_size([850.0, 650.0]),
         ..Default::default()
     };
-    eframe::run_native(
+    let smoke_test = std::env::args().any(|arg| arg == "--smoke-test");
+    let result = eframe::run_native(
         "EO-Texrip",
         options,
         Box::new(|cc| {
             cc.egui_ctx.set_visuals(egui::Visuals::dark());
-            Ok(Box::new(App::default()))
+            Ok(Box::new(App {
+                smoke_test,
+                ..Default::default()
+            }))
         }),
-    )
+    );
+    if let Err(error) = &result
+        && !smoke_test {
+            rfd::MessageDialog::new()
+                .set_title("EO-Texrip could not start")
+                .set_description(format!(
+                    "{error}\n\nCheck that your graphics driver supports OpenGL 3.3."
+                ))
+                .set_level(rfd::MessageLevel::Error)
+                .show();
+        }
+    result
 }
 
 #[cfg(test)]

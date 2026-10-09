@@ -51,6 +51,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Packaged export failed' }
           $catalog = Get-Content "$package/Demo/Workspace/.eouhd/catalog.json" -Raw | ConvertFrom-Json
           if ($catalog.summary.unique_images -ne 10) { throw 'Demo image count is incorrect' }
+          $gui = Start-Process -FilePath "$package/EO-Texrip.exe" -ArgumentList '--smoke-test' -PassThru
+          if (-not $gui.WaitForExit(30000)) { $gui.Kill(); throw 'Packaged GUI launch did not complete' }
+          if ($gui.ExitCode -ne 0) { throw "Packaged GUI failed to open (exit $($gui.ExitCode))" }
           $hashes = Get-FileHash "$package/EO-Texrip.exe","$package/eotexrip.exe" -Algorithm SHA256
           $hashes | ForEach-Object { "$($_.Hash.ToLower())  $([System.IO.Path]::GetFileName($_.Path))" } | Set-Content "$package/SHA256SUMS.txt"
           Compress-Archive -Path $package -DestinationPath "$package.zip"
