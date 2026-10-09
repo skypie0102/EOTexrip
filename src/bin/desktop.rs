@@ -750,15 +750,16 @@ fn main() -> eframe::Result<()> {
         }),
     );
     if let Err(error) = &result
-        && !smoke_test {
-            rfd::MessageDialog::new()
-                .set_title("EO-Texrip could not start")
-                .set_description(format!(
-                    "{error}\n\nCheck that your graphics driver supports OpenGL 3.3."
-                ))
-                .set_level(rfd::MessageLevel::Error)
-                .show();
-        }
+        && !smoke_test
+    {
+        rfd::MessageDialog::new()
+            .set_title("EO-Texrip could not start")
+            .set_description(format!(
+                "{error}\n\nCheck that your graphics driver supports OpenGL 3.3."
+            ))
+            .set_level(rfd::MessageLevel::Error)
+            .show();
+    }
     result
 }
 
