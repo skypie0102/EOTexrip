@@ -1,0 +1,10 @@
+/target/
+/private-data/
+/test-output/
+*.3ds
+*.cci
+*.cia
+*.cxi
+*.app
+*.romfs
+*-calibration-bundle.json

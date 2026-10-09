@@ -1,0 +1,189 @@
+{
+  "schema": "eotexrip-rebuild-metadata-coverage-v1",
+  "version": "0.1.0-alpha.1",
+  "meaning": "Assignment coverage only; no verified accuracy labels or pixel validation.",
+  "records": 14456,
+  "games": [
+    {
+      "game": "EOIV",
+      "records": 2158,
+      "summary": {
+        "resources": 0,
+        "textures": 2158,
+        "unique_images": 2158,
+        "mapped_images": 2131,
+        "png_only_images": 27,
+        "category_review": 94,
+        "name_review": 379,
+        "by_category": {
+          "backgrounds": 133,
+          "characters": 404,
+          "dungeon": 312,
+          "effects": 333,
+          "fonts": 424,
+          "icons": 9,
+          "maps": 31,
+          "misc": 70,
+          "monsters": 255,
+          "ui": 187
+        },
+        "issues": 0
+      },
+      "historical_category_counts": {
+        "misc": 972,
+        "dungeon": 221,
+        "monsters": 253,
+        "effects": 209,
+        "ui": 41,
+        "characters": 227,
+        "icons": 9,
+        "backgrounds": 1,
+        "maps": 31,
+        "fonts": 194
+      }
+    },
+    {
+      "game": "EON",
+      "records": 3988,
+      "summary": {
+        "resources": 0,
+        "textures": 3988,
+        "unique_images": 3988,
+        "mapped_images": 3899,
+        "png_only_images": 89,
+        "category_review": 1096,
+        "name_review": 70,
+        "by_category": {
+          "backgrounds": 74,
+          "characters": 510,
+          "dungeon": 201,
+          "effects": 452,
+          "fonts": 959,
+          "icons": 4,
+          "maps": 10,
+          "misc": 1052,
+          "monsters": 433,
+          "ui": 293
+        },
+        "issues": 0
+      },
+      "historical_category_counts": {
+        "misc": 2785,
+        "characters": 67,
+        "monsters": 56,
+        "icons": 17,
+        "ui": 30,
+        "dungeon": 23,
+        "backgrounds": 13,
+        "effects": 8,
+        "maps": 20,
+        "fonts": 969
+      }
+    },
+    {
+      "game": "EOU",
+      "records": 2280,
+      "summary": {
+        "resources": 0,
+        "textures": 2280,
+        "unique_images": 2280,
+        "mapped_images": 2280,
+        "png_only_images": 0,
+        "category_review": 123,
+        "name_review": 420,
+        "by_category": {
+          "backgrounds": 168,
+          "characters": 502,
+          "dungeon": 394,
+          "effects": 369,
+          "fonts": 230,
+          "icons": 15,
+          "maps": 12,
+          "misc": 90,
+          "monsters": 305,
+          "ui": 195
+        },
+        "issues": 0
+      },
+      "historical_category_counts": {
+        "ui": 67,
+        "monsters": 392,
+        "dungeon": 1191,
+        "maps": 94,
+        "characters": 505,
+        "icons": 31
+      }
+    },
+    {
+      "game": "EOU2",
+      "records": 2884,
+      "summary": {
+        "resources": 0,
+        "textures": 2884,
+        "unique_images": 2884,
+        "mapped_images": 2884,
+        "png_only_images": 0,
+        "category_review": 131,
+        "name_review": 562,
+        "by_category": {
+          "backgrounds": 180,
+          "characters": 744,
+          "dungeon": 329,
+          "effects": 427,
+          "fonts": 230,
+          "icons": 22,
+          "maps": 40,
+          "misc": 98,
+          "monsters": 401,
+          "ui": 413
+        },
+        "issues": 0
+      },
+      "historical_category_counts": {
+        "maps": 162,
+        "ui": 82,
+        "characters": 749,
+        "dungeon": 1207,
+        "monsters": 645,
+        "icons": 39
+      }
+    },
+    {
+      "game": "EOV",
+      "records": 3146,
+      "summary": {
+        "resources": 0,
+        "textures": 3146,
+        "unique_images": 3146,
+        "mapped_images": 3068,
+        "png_only_images": 78,
+        "category_review": 788,
+        "name_review": 18,
+        "by_category": {
+          "backgrounds": 96,
+          "characters": 290,
+          "dungeon": 179,
+          "effects": 432,
+          "fonts": 959,
+          "icons": 4,
+          "misc": 770,
+          "monsters": 212,
+          "ui": 204
+        },
+        "issues": 0
+      },
+      "historical_category_counts": {
+        "misc": 2062,
+        "icons": 14,
+        "ui": 30,
+        "backgrounds": 13,
+        "fonts": 970,
+        "monsters": 23,
+        "characters": 17,
+        "maps": 10,
+        "effects": 6,
+        "dungeon": 1
+      }
+    }
+  ]
+}

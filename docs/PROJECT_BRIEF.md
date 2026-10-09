@@ -1,5 +1,10 @@
 # Recovered EO-Texrip project brief
 
+**Latest requirement:** rebuild from scratch and improve reliable initial category
+placement and readable filenames. Historical routing rollback decisions preserve
+the flat folder layout; they do not freeze the old classifier. See
+[rebuild status](REBUILD_PLAN.md) for the current implementation.
+
 Recovered on 2026-10-09 from nine earlier conversations in the EO-Texrip project. This brief records that project's requirements and decisions. It does not establish that the lost implementation, binaries, or reported tests have been restored to this repository.
 
 ## Product goal
