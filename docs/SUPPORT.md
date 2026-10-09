@@ -6,7 +6,7 @@ are not tests of this implementation.
 | Area | Implemented | Validation / remaining work |
 | --- | --- | --- |
 | Decrypted NCSD, NCCH, CIA, RomFS | Bounded file traversal and title detection | Synthetic end-to-end fixtures; no current retail input available |
-| HPI/HPB + ACMP | Native index/member reads, bounded backward decompression | Index extraction tested; additional real compressed variants needed |
+| HPI/HPB + ACMP | Native index/member reads, bounded backward decompression | Index extraction and overlapping backward runs with raw prefix tested; additional real compressed variants needed |
 | FARC/SIR0 | Structural outer/FAT tables | Generic synthetic fixture; game-specific variants need validation |
 | STEX | Combined GL type/format, named base-mip payload | Synthetic channels, orientation, bounds and hash-span tests |
 | CGFX | Typed image TXOB descriptor/pointers | Synthetic models; one bad entry preserves valid entries and reports an issue |
@@ -18,7 +18,7 @@ are not tests of this implementation.
 | TMX, TTD, TGD | No complete native implementation | Reported as unsupported when encountered; no speculative runtime hashes |
 | Five mainline 3DS games | Profile-scoped rules and shared structural parsers | All five saved metadata captures replayed; rebuilt game extraction/replacement not yet certified |
 | Mystery Dungeon 1 / 2 | Visible research targets | Extraction disabled until independently validated |
-| Windows desktop | Dark GUI, file/folder selection, drag/drop, background jobs, previews, corrections | Headless egui render test and Windows compilation; interactive packaged GUI launch needs manual validation |
+| Windows desktop | Dark GUI, file/folder selection, drag/drop, background jobs, previews, corrections; WGPU renderer on Windows | Headless egui render test; native launch/exit is a packaging gate. Full manual interaction still needs validation |
 | Masters and deployment | Persistent identities, dedup hashes, saved corrections, staged publication | Edited/upscaled preservation, manual rename, failed-input and recovery tests |
 
 Unsupported entries appear in the issue list. Previously extracted masters

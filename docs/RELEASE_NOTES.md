@@ -9,7 +9,7 @@ The app provides decrypted ROM/RomFS/resource-folder extraction, all 14 PICA
 formats, flat categories, readable source-based names, PNG previews, evidence
 review, persistent confirmed corrections, protected editable masters, and
 Azahar pack rebuilding. CI exercises Linux and Windows tests and the packaged
-Windows CLI with synthetic data.
+Windows CLI with synthetic data, then opens and closes the native desktop.
 
 Classification was replayed against 14,456 recovered metadata records from the
 five mainline 3DS games. The aggregate report records assignments and unresolved

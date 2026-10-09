@@ -732,12 +732,22 @@ fn open_folder(path: &Path) -> anyhow::Result<()> {
 }
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
+        renderer: if cfg!(target_os = "windows") {
+            eframe::Renderer::Wgpu
+        } else {
+            eframe::Renderer::Glow
+        },
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1150.0, 900.0])
             .with_min_inner_size([850.0, 650.0]),
         ..Default::default()
     };
-    let smoke_test = std::env::args().any(|arg| arg == "--smoke-test");
+    let args: Vec<_> = std::env::args_os().collect();
+    let smoke_test = args.iter().any(|arg| arg == "--smoke-test");
+    let startup_log = args
+        .windows(2)
+        .find(|pair| pair[0] == "--startup-log")
+        .map(|pair| PathBuf::from(&pair[1]));
     let result = eframe::run_native(
         "EO-Texrip",
         options,
@@ -749,13 +759,22 @@ fn main() -> eframe::Result<()> {
             }))
         }),
     );
+    if let Some(path) = startup_log {
+        let message = match &result {
+            Ok(()) => "Native desktop opened and closed successfully.\n".into(),
+            Err(error) => format!("Native desktop startup failed: {error:#?}\n"),
+        };
+        if let Err(error) = std::fs::write(path, message) {
+            eprintln!("Could not write desktop diagnostics: {error}");
+        }
+    }
     if let Err(error) = &result
         && !smoke_test
     {
         rfd::MessageDialog::new()
             .set_title("EO-Texrip could not start")
             .set_description(format!(
-                "{error}\n\nCheck that your graphics driver supports OpenGL 3.3."
+                "{error}\n\nCheck that your graphics driver is installed and up to date."
             ))
             .set_level(rfd::MessageLevel::Error)
             .show();

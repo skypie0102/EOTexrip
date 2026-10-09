@@ -7,7 +7,7 @@ description = "Native Etrian Odyssey 3DS texture extraction and organization"
 
 [features]
 default = ["desktop"]
-desktop = ["dep:eframe", "dep:rfd"]
+desktop = ["dep:eframe", "dep:rfd", "dep:wgpu"]
 
 [dependencies]
 anyhow = "1.0"
@@ -19,8 +19,11 @@ png = "0.18"
 walkdir = "2.5"
 cityhasher = "0.1"
 fs2 = "0.4"
-eframe = { version = "0.33.0", optional = true, default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
+eframe = { version = "0.33.0", optional = true, default-features = false, features = ["default_fonts", "glow", "wgpu", "x11", "wayland"] }
 rfd = { version = "0.15", optional = true, default-features = false, features = ["xdg-portal", "async-std"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+wgpu = { version = "27.0.1", optional = true, default-features = false, features = ["dx12"] }
 
 [dev-dependencies]
 tempfile = "3.23"

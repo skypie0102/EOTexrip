@@ -241,6 +241,29 @@ pub fn farc(data: &[u8]) -> Result<Vec<Member>> {
 mod tests {
     use super::*;
     #[test]
+    fn acmp_backward_runs_preserve_literal_prefix_and_reject_invalid_history() {
+        // A raw prefix followed by three literals and an overlapping 18-byte
+        // backward reference. The compressed footer includes its eight bytes.
+        let mut packed = b"PREFIX".to_vec();
+        packed.extend_from_slice(&[0, 0xf0, b'a', b'b', b'c', 0x10]);
+        packed.extend_from_slice(&(8u32 << 24 | 14).to_le_bytes());
+        packed.extend_from_slice(&7u32.to_le_bytes());
+        let mut data = vec![0; 32];
+        data[..4].copy_from_slice(b"ACMP");
+        data[4..8].copy_from_slice(&(packed.len() as u32).to_le_bytes());
+        data[8..12].copy_from_slice(&32u32.to_le_bytes());
+        data[16..20].copy_from_slice(&27u32.to_le_bytes());
+        data.extend_from_slice(&packed);
+        assert_eq!(acmp(&data).unwrap(), b"PREFIXabcabcabcabcabcabcabc");
+        // With no preceding literals, a reference cannot read initialized
+        // history. Failure must precede publication of an extracted resource.
+        data[43] = 0x80;
+        assert!(acmp(&data).is_err());
+        data[43] = 0x10;
+        data[48..52].copy_from_slice(&100u32.to_le_bytes());
+        assert!(acmp(&data).is_err());
+    }
+    #[test]
     fn lz_literals_and_bounds() {
         assert_eq!(
             nintendo_lz(&[0x10, 3, 0, 0, 0, b'a', b'b', b'c']).unwrap(),

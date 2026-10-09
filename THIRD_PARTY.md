@@ -4,10 +4,10 @@ The Rust application bundles code from the packages pinned in `Cargo.lock`.
 Direct dependencies are anyhow (MIT/Apache-2.0), clap (MIT/Apache-2.0), serde
 (MIT/Apache-2.0), serde_json (MIT/Apache-2.0), sha2 (MIT/Apache-2.0), png
 (MIT/Apache-2.0), walkdir (MIT/Unlicense), cityhasher (MIT/Apache-2.0), fs2
-(MIT/Apache-2.0), eframe/egui (MIT/Apache-2.0), and rfd (MIT).
+(MIT/Apache-2.0), eframe/egui (MIT/Apache-2.0), rfd (MIT), and wgpu (MIT/Apache-2.0).
 The Windows package includes `DEPENDENCY_LICENSES.yml`, generated from the
 pinned Cargo dependency license texts during packaging. Supplemental upstream
-GUI, clipboard, profiling, and font notices are included in `licenses/`. `tempfile` is used only for tests.
+GUI, clipboard, profiling, shader-parser, and font notices are included in `licenses/`. `tempfile` is used only for tests.
 
 The implementations in this repository were written in Rust using format
 layouts and behavioral references from:
