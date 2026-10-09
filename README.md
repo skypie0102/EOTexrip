@@ -12,9 +12,18 @@ rebuild's version or a compatibility guarantee.
 
 ## Download and use
 
-Download the Windows x64 ZIP from [Releases](https://github.com/skypie0102/EOTexrip/releases),
-extract it, and open `EO-Texrip.exe`. End users do not install Python, Cargo,
-Git, or separate extraction tools. The package includes a synthetic demo.
+Download the Windows x64 ZIP from the newest successful
+[Windows package workflow](https://github.com/skypie0102/EOTexrip/actions/workflows/build.yml?query=branch%3Arebuild%2Fnative-app):
+open the run, then download its `EO-Texrip-0.1.0-alpha.1-windows-x64` artifact.
+Extract the outer artifact ZIP and then the app ZIP inside it. Open
+`EO-Texrip.exe`. End users do not install Python, Cargo, Git, or separate
+extraction tools. The package includes a synthetic demo. GitHub requires a
+signed-in account for artifact downloads; artifacts expire after 30 days.
+The workflow can rebuild the package from the committed source.
+
+Automatic release publication was rejected by GitHub with HTTP 403, so this
+alpha uses tested build artifacts. Tagged releases can be published separately
+with an account or token that has release permission.
 
 1. Select the game, a decrypted dump or resource folder, and a workspace.
 2. Extract and organize the textures offline.

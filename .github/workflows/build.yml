@@ -24,8 +24,6 @@ jobs:
   windows:
     needs: check
     runs-on: windows-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
@@ -67,12 +65,3 @@ jobs:
             EO-Texrip-0.1.0-alpha.1-windows-x64.zip.sha256
           if-no-files-found: error
           retention-days: 30
-      - name: Publish tested rebuild alpha
-        if: github.event_name == 'push' && github.ref == 'refs/heads/rebuild/native-app'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: pwsh
-        run: |
-          $tag = "rebuild-alpha-$($env:GITHUB_SHA.Substring(0,8))"
-          gh release create $tag EO-Texrip-0.1.0-alpha.1-windows-x64.zip EO-Texrip-0.1.0-alpha.1-windows-x64.zip.sha256 --target $env:GITHUB_SHA --prerelease --title "EO-Texrip rebuilt alpha 0.1.0-alpha.1" --notes-file docs/RELEASE_NOTES.md
-          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }
