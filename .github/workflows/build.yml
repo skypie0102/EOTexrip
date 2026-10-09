@@ -1,0 +1,72 @@
+name: Native app checks and Windows package
+on:
+  pull_request:
+  push:
+    branches: [main, rebuild/native-app]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: 1.99.0
+          components: rustfmt, clippy
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo test --all-targets --locked
+  windows:
+    needs: check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: 1.99.0
+      - run: cargo build --release --locked --bins
+      - run: cargo install cargo-bundle-licenses --locked --version 4.2.0
+      - run: cargo bundle-licenses --format yaml --previous licenses/Windows-supplement.yml --output DEPENDENCY_LICENSES.yml
+      - name: Package and exercise the native executable
+        shell: pwsh
+        run: |
+          $version = '0.1.0-alpha.1'
+          $package = "EO-Texrip-$version-windows-x64"
+          New-Item -ItemType Directory -Path "$package/docs" -Force | Out-Null
+          Copy-Item target/release/EO-Texrip.exe,target/release/eotexrip.exe,README.md,LICENSE,THIRD_PARTY.md,DEPENDENCY_LICENSES.yml $package
+          Copy-Item docs/USER_GUIDE.md,docs/SUPPORT.md "$package/docs"
+          Copy-Item -Recurse licenses "$package/licenses"
+          & "$package/eotexrip.exe" demo --output "$package/Demo/Input"
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged demo generator failed' }
+          & "$package/eotexrip.exe" extract "$package/Demo/Input" --output "$package/Demo/Workspace" --game eou --title-id 00040000000EC700
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged extraction failed' }
+          & "$package/eotexrip.exe" export "$package/Demo/Workspace"
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged export failed' }
+          $catalog = Get-Content "$package/Demo/Workspace/.eouhd/catalog.json" -Raw | ConvertFrom-Json
+          if ($catalog.summary.unique_images -ne 10) { throw 'Demo image count is incorrect' }
+          $startupLog = Join-Path (Resolve-Path $package).Path 'gui-startup.log'
+          $stderrLog = Join-Path (Resolve-Path $package).Path 'gui-stderr.log'
+          $gui = Start-Process -FilePath "$package/EO-Texrip.exe" -ArgumentList "--smoke-test --startup-log `"$startupLog`"" -RedirectStandardError $stderrLog -PassThru
+          if (-not $gui.WaitForExit(30000)) { $gui.Kill(); throw 'Packaged GUI launch did not complete' }
+          if (Test-Path $startupLog) { Get-Content $startupLog }
+          if (Test-Path $stderrLog) { Get-Content $stderrLog }
+          if ($gui.ExitCode -ne 0) { throw "Packaged GUI failed to open (exit $($gui.ExitCode))" }
+          Remove-Item $startupLog,$stderrLog -ErrorAction SilentlyContinue
+          $hashes = Get-FileHash "$package/EO-Texrip.exe","$package/eotexrip.exe" -Algorithm SHA256
+          $hashes | ForEach-Object { "$($_.Hash.ToLower())  $([System.IO.Path]::GetFileName($_.Path))" } | Set-Content "$package/SHA256SUMS.txt"
+          Compress-Archive -Path $package -DestinationPath "$package.zip"
+          $zip = Get-FileHash "$package.zip" -Algorithm SHA256
+          "$($zip.Hash.ToLower())  $package.zip" | Set-Content "$package.zip.sha256"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: EO-Texrip-0.1.0-alpha.1-windows-x64
+          path: |
+            EO-Texrip-0.1.0-alpha.1-windows-x64.zip
+            EO-Texrip-0.1.0-alpha.1-windows-x64.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
