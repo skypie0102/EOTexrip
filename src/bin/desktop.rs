@@ -409,6 +409,15 @@ impl App {
             ui.colored_label(egui::Color32::from_rgb(230,190,90),"Metadata review: previews and pixel validation require an extracted workspace. Corrections can be saved for later use.");
         }
         let issues = catalog.issues.clone();
+        if issues.iter().any(|issue| {
+            issue.stage.starts_with("archive_member")
+                || matches!(issue.stage.as_str(), "resource_limit" | "decompression")
+        }) {
+            ui.colored_label(
+                egui::Color32::from_rgb(230, 190, 90),
+                "Some resources were skipped. See Extraction issues for their paths and reasons.",
+            );
+        }
         egui::CollapsingHeader::new(format!("Extraction issues ({})", issues.len())).show(
             ui,
             |ui| {

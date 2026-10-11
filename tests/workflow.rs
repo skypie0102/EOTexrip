@@ -34,32 +34,67 @@ fn input(root: &Path) {
     fs::write(root.join("MORI1R.HPB"), payload).unwrap();
 }
 #[test]
-fn untold_save_placeholder_does_not_block_texture_extraction() {
+fn unavailable_untold_members_do_not_block_valid_textures_in_any_namespace() {
     let t = tempfile::tempdir().unwrap();
     let i = t.path().join("in");
     let o = t.path().join("out");
     fs::create_dir_all(&i).unwrap();
     let (mut index, payload) = hpi(&[
-        ("SAVEDATA/MO1R04_GAME.SAV", vec![]),
         (
             "STEX/KEYBOARD/KATAKANA/IG_KEY_KATAKANA045.STEX",
             stex("", 7, 0),
         ),
+        ("SAVEDATA/MO1R04_GAME.SAV", vec![]),
+        ("SND/MORI1R/STREAM/NBGM_BATTLE2.DSPADPCM.BCSTM", vec![]),
+        ("OTHER/UNAVAILABLE.BIN", vec![]),
+        ("STEX/TRUNCATED.STEX", vec![]),
         ("STEX/FACILITY/BG/IG_FAC_BG_05.STEX", stex("", 8, 0)),
+        // Even a sound payload that resembles a texture must be excluded.
+        (
+            "SND/MORI1R/STREAM/BOUNDED.Bcstm",
+            stex("not_a_texture", 9, 0),
+        ),
+        ("SAVEDATA/BOUNDED.SAV", stex("not_a_texture", 10, 0)),
     ]);
-    word(&mut index, 28, u32::MAX);
-    word(&mut index, 32, 4096);
+    for entry in [1, 2] {
+        word(&mut index, 24 + entry * 16 + 4, u32::MAX);
+        word(&mut index, 24 + entry * 16 + 8, 4096);
+    }
+    word(&mut index, 24 + 3 * 16 + 4, payload.len() as u32 + 1);
+    word(&mut index, 24 + 4 * 16 + 4, payload.len() as u32 - 1);
+    word(&mut index, 24 + 4 * 16 + 8, 2);
     fs::write(i.join("MORI1R.HPI"), index).unwrap();
     fs::write(i.join("MORI1R.HPB"), payload).unwrap();
     let c = extract(&i, &o).unwrap();
     assert_eq!(c.summary.unique_images, 2);
-    assert_eq!(c.issues.len(), 1);
-    assert_eq!(c.issues[0].stage, "archive_save_entry");
-    assert!(c.issues[0].source.ends_with("SAVEDATA/MO1R04_GAME.SAV"));
+    assert_eq!(c.summary.resources, 2);
+    assert_eq!(c.issues.len(), 4);
+    assert!(
+        c.issues
+            .iter()
+            .all(|issue| issue.stage == "archive_member_bounds")
+    );
+    for name in [
+        "SAVEDATA/MO1R04_GAME.SAV",
+        "SND/MORI1R/STREAM/NBGM_BATTLE2.DSPADPCM.BCSTM",
+        "OTHER/UNAVAILABLE.BIN",
+        "STEX/TRUNCATED.STEX",
+    ] {
+        assert!(
+            c.issues
+                .iter()
+                .any(|issue| issue.source.ends_with(name) && issue.message.contains("outside HPB"))
+        );
+    }
     assert!(c.assets.iter().all(|a| !a.source.contains("SAVEDATA")));
+    assert!(c.assets.iter().all(|a| !a.source.contains("SND/")));
+    assert!(c.assets.iter().all(|a| a.internal_name != "not_a_texture"));
+    let report = workspace::load(&o).unwrap();
+    assert_eq!(report.summary.issues, 4);
+    assert_eq!(report.issues.len(), c.issues.len());
 }
 #[test]
-fn out_of_bounds_resources_still_fail_and_preserve_existing_outputs() {
+fn unusable_hpi_input_preserves_existing_outputs() {
     let t = tempfile::tempdir().unwrap();
     let i = t.path().join("in");
     let o = t.path().join("out");
@@ -84,6 +119,179 @@ fn out_of_bounds_resources_still_fail_and_preserve_existing_outputs() {
         assert_eq!(
             fs::read(o.join("azahar_pack_master/pack.json")).unwrap(),
             before_pack
+        );
+    }
+}
+#[test]
+fn partial_archive_retains_edited_master_for_unavailable_texture() {
+    let t = tempfile::tempdir().unwrap();
+    let i = t.path().join("in");
+    let o = t.path().join("out");
+    input(&i);
+    let first = extract(&i, &o).unwrap();
+    let missing = first
+        .assets
+        .iter()
+        .find(|a| a.category.category == Category::Backgrounds)
+        .unwrap();
+    let path = o.join("azahar_pack_master").join(&missing.master_file);
+    let mut encoder = png::Encoder::new(fs::File::create(&path).unwrap(), 16, 16);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder
+        .write_header()
+        .unwrap()
+        .write_image_data(&[123; 16 * 16 * 4])
+        .unwrap();
+    let edited = fs::read(&path).unwrap();
+    let pack_before = fs::read(o.join("azahar_pack_master/pack.json")).unwrap();
+    let index_path = i.join("MORI1R.HPI");
+    let mut index = fs::read(&index_path).unwrap();
+    word(&mut index, 24 + 16 + 4, u32::MAX);
+    fs::write(index_path, index).unwrap();
+    let partial = extract(&i, &o).unwrap();
+    assert_eq!(partial.summary.textures, 3);
+    assert_eq!(partial.summary.unique_images, 4);
+    assert!(
+        partial
+            .issues
+            .iter()
+            .any(|issue| issue.stage == "archive_member_bounds" && issue.source == missing.source)
+    );
+    assert!(
+        partial
+            .issues
+            .iter()
+            .any(|issue| issue.stage == "preservation" && issue.source == missing.source)
+    );
+    assert_eq!(fs::read(path).unwrap(), edited);
+    assert_eq!(
+        fs::read(o.join(format!("azahar_pack/{TITLE}/{}", missing.master_file))).unwrap(),
+        edited
+    );
+    assert_eq!(
+        fs::read(o.join("azahar_pack_master/pack.json")).unwrap(),
+        pack_before
+    );
+}
+#[test]
+fn oversized_and_bad_compressed_members_are_reported_without_blocking_others() {
+    let t = tempfile::tempdir().unwrap();
+    let i = t.path().join("in");
+    let o = t.path().join("out");
+    fs::create_dir_all(&i).unwrap();
+    let mut packed = b"ACMPxx".to_vec();
+    packed.extend_from_slice(&[0, 0xf0, b'a', b'b', b'c', 0x10]);
+    packed.extend_from_slice(&(8u32 << 24 | 14).to_le_bytes());
+    packed.extend_from_slice(&7u32.to_le_bytes());
+    let mut nested = vec![0; 32];
+    nested[..4].copy_from_slice(b"ACMP");
+    word(&mut nested, 4, packed.len() as u32);
+    word(&mut nested, 8, 32);
+    word(&mut nested, 16, 27);
+    nested.extend_from_slice(&packed);
+    assert!(
+        eotexrip::archive::acmp(&nested)
+            .unwrap()
+            .starts_with(b"ACMP")
+    );
+    let mut mismatch = nested.clone();
+    mismatch[32..38].copy_from_slice(b"PREFIX");
+    let (mut index, payload) = hpi(&[
+        ("STEX/VALID_BEFORE.STEX", stex("", 7, 0)),
+        ("STEX/TOO_LARGE.STEX", stex("", 8, 0)),
+        ("STEX/BAD_COMPRESSED.STEX", b"ACMP".to_vec()),
+        ("SND/MORI1R/STREAM/BOUNDED.BCSTM", b"ACMP".to_vec()),
+        ("STEX/NESTED_BAD.STEX", nested),
+        ("STEX/SIZE_MISMATCH.STEX", mismatch),
+        ("STEX/VALID_AFTER.STEX", stex("", 10, 0)),
+    ]);
+    word(&mut index, 24 + 5 * 16 + 12, 28);
+    word(
+        &mut index,
+        24 + 16 + 12,
+        eotexrip::archive::MAX_RESOURCE as u32 + 1,
+    );
+    fs::write(i.join("MORI1R.HPI"), &index).unwrap();
+    fs::write(i.join("MORI1R.HPB"), payload).unwrap();
+    let c = extract(&i, &o).unwrap();
+    assert_eq!(c.summary.unique_images, 2);
+    assert!(
+        c.issues.iter().any(
+            |issue| issue.stage == "resource_limit" && issue.source.ends_with("TOO_LARGE.STEX")
+        )
+    );
+    assert!(
+        c.issues
+            .iter()
+            .any(|issue| issue.stage == "archive_member_decode"
+                && issue.source.ends_with("BAD_COMPRESSED.STEX"))
+    );
+    assert!(
+        c.issues.iter().any(
+            |issue| issue.stage == "decompression" && issue.source.ends_with("NESTED_BAD.STEX")
+        )
+    );
+    assert!(
+        c.issues
+            .iter()
+            .any(|issue| issue.stage == "archive_member_decode"
+                && issue.source.ends_with("SIZE_MISMATCH.STEX")
+                && issue.message.contains("expansion size mismatch"))
+    );
+    assert_eq!(c.issues.len(), 4);
+    // A stored range can be valid in a large HPB yet exceed the decode budget.
+    word(&mut index, 24 + 16 + 4, 0);
+    word(
+        &mut index,
+        24 + 16 + 8,
+        eotexrip::archive::MAX_RESOURCE as u32 + 1,
+    );
+    word(&mut index, 24 + 16 + 12, 0);
+    let parsed =
+        eotexrip::archive::hpi(&index, eotexrip::archive::MAX_RESOURCE as u64 + 1).unwrap();
+    assert_eq!(parsed.issues.len(), 1);
+    assert_eq!(parsed.issues[0].stage, "resource_limit");
+    assert!(
+        !parsed
+            .members
+            .iter()
+            .any(|m| m.name.ends_with("TOO_LARGE.STEX"))
+    );
+}
+#[test]
+fn damaged_hpi_structure_remains_fatal_even_with_valid_texture_members() {
+    let t = tempfile::tempdir().unwrap();
+    let i = t.path().join("in");
+    let o = t.path().join("out");
+    input(&i);
+    extract(&i, &o).unwrap();
+    let before = fs::read(o.join("azahar_pack_master/pack.json")).unwrap();
+    for name in ["SAVEDATA/../BAD.SAV", "C:/BAD.STEX"] {
+        let (index, payload) = hpi(&[("STEX/VALID.STEX", stex("", 7, 0)), (name, vec![])]);
+        fs::write(i.join("MORI1R.HPI"), index).unwrap();
+        fs::write(i.join("MORI1R.HPB"), payload).unwrap();
+        assert!(extract(&i, &o).is_err());
+        assert_eq!(
+            fs::read(o.join("azahar_pack_master/pack.json")).unwrap(),
+            before
+        );
+    }
+    let (index, payload) = hpi(&[
+        ("STEX/VALID.STEX", stex("", 7, 0)),
+        ("STEX/OTHER.STEX", vec![]),
+    ]);
+    for corrupted in [index[..39].to_vec(), {
+        let mut data = index.clone();
+        word(&mut data, 24 + 16, u32::MAX);
+        data
+    }] {
+        fs::write(i.join("MORI1R.HPI"), corrupted).unwrap();
+        fs::write(i.join("MORI1R.HPB"), &payload).unwrap();
+        assert!(extract(&i, &o).is_err());
+        assert_eq!(
+            fs::read(o.join("azahar_pack_master/pack.json")).unwrap(),
+            before
         );
     }
 }

@@ -73,7 +73,7 @@ normal emulator upscale batch.
 
 ## Upgrade an alpha.1 workspace
 
-Use alpha.2 to **Load workspace**, then **Rebuild emulator pack**. You do not
+Use alpha.3 to **Load workspace**, then **Rebuild emulator pack**. You do not
 need to extract the ROM again. Untouched alpha.1 PNGs are flipped upright once;
 names, categories, and runtime hash mappings remain attached to the same assets.
 An otherwise unchanged original that you already flipped is detected and kept.
@@ -90,8 +90,17 @@ Copy the rebuilt deployment folder into Azahar again. Keep
 `flip_png_files=true`: Azahar applies its GPU row reversal when loading the
 upright PNG. Changing this setting would undo the correction in the emulator.
 
-For Untold 1, retry extraction with alpha.2. Out-of-payload `SAVEDATA/*.SAV`
-entries are reported and skipped; texture members still require valid HPB ranges.
+For Untold 1, retry extraction with alpha.3. Individual HPI entries outside the
+HPB payload are reported and skipped regardless of filename. Known audio,
+video, and save files are excluded from texture decoding. An oversized member
+or a failed ACMP member is also reported while other resources continue.
+
+Review **Extraction issues** and `.eouhd/EOU-extraction-report.json` for omitted
+paths and reasons. Missing texture members mean coverage is incomplete; the app
+does not manufacture a replacement or read beyond the HPB. Existing editable
+masters for those members survive a partial rerun. Keep matching HPI/HPB files
+from the same dump together. A malformed index, missing HPB, cancellation, or
+run with no supported textures still stops publication and preserves outputs.
 
 ## Command line
 

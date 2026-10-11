@@ -27,6 +27,14 @@ pub struct Progress {
     pub textures: usize,
     pub message: String,
 }
+
+fn is_non_texture(source: &str) -> bool {
+    let lower = source.to_ascii_lowercase();
+    [".bcstm", ".bcwav", ".bcsar", ".bclim_audio", ".moflex"]
+        .iter()
+        .any(|ext| lower.ends_with(ext))
+        || lower.ends_with(".sav") && lower.split('/').any(|part| part == "savedata")
+}
 struct Session<'a, F: FnMut(Progress)> {
     workspace: &'a Workspace,
     catalog: Catalog,
@@ -64,9 +72,17 @@ impl<F: FnMut(Progress)> Session<'_, F> {
             "resource-count limit exceeded"
         );
         if data.starts_with(b"ACMP") {
-            let decoded = archive::acmp(data)
-                .with_context(|| format!("ACMP decompression failed for {source}"))?;
-            return self.process(source, &decoded, depth + 1);
+            match archive::acmp(data) {
+                Ok(decoded) => return self.process(source, &decoded, depth + 1),
+                Err(error) => {
+                    self.issue(
+                        source,
+                        "decompression",
+                        format!("ACMP member skipped: {error}"),
+                    );
+                    return Ok(());
+                }
+            }
         }
         if data.starts_with(b"FARC") {
             match archive::farc(data) {
@@ -285,11 +301,11 @@ pub fn extract(
         consumed.insert(resource.path.to_lowercase());
         let members = archive::hpi(&resource.read()?, payload.size)
             .with_context(|| format!("invalid HPI index {}", resource.path))?;
-        for name in members.skipped_saves {
+        for issue in members.issues {
             session.issue(
-                &format!("{}/{name}", resource.path),
-                "archive_save_entry",
-                "Skipped save-data index entry with no bounded HPB payload; save files are not texture resources",
+                &format!("{}/{}", resource.path, issue.name),
+                issue.stage,
+                issue.message,
             );
         }
         for member in members.members {
@@ -297,6 +313,9 @@ pub fn extract(
                 !cancel.load(Ordering::Relaxed),
                 "extraction cancelled; previous outputs preserved"
             );
+            if is_non_texture(&member.name) {
+                continue;
+            }
             let member_resource = payload.slice(
                 format!("{}/{}", resource.path, member.name),
                 member.offset as u64,
@@ -304,11 +323,21 @@ pub fn extract(
             )?;
             let raw = member_resource.read()?;
             if raw.starts_with(b"ACMP") {
-                let decoded = archive::acmp(&raw)?;
-                ensure!(
-                    member.expanded_size == 0 || decoded.len() == member.expanded_size,
-                    "HPI/ACMP expansion size mismatch"
-                );
+                let decoded = match archive::acmp(&raw) {
+                    Ok(decoded) => decoded,
+                    Err(error) => {
+                        session.issue(&member_resource.path, "archive_member_decode", error);
+                        continue;
+                    }
+                };
+                if member.expanded_size != 0 && decoded.len() != member.expanded_size {
+                    session.issue(
+                        &member_resource.path,
+                        "archive_member_decode",
+                        "HPI/ACMP expansion size mismatch; member skipped",
+                    );
+                    continue;
+                }
                 session.process(&member_resource.path, &decoded, 1)?;
             } else {
                 session.process(&member_resource.path, &raw, 0)?;
@@ -319,11 +348,7 @@ pub fn extract(
         if consumed.contains(&resource.path.to_lowercase()) {
             continue;
         }
-        let lower = resource.path.to_lowercase();
-        if [".bcstm", ".bcwav", ".bcsar", ".bclim_audio", ".moflex"]
-            .iter()
-            .any(|ext| lower.ends_with(ext))
-        {
+        if is_non_texture(&resource.path) {
             continue;
         }
         if resource.size > archive::MAX_RESOURCE as u64 {
@@ -336,10 +361,22 @@ pub fn extract(
         }
         session.process(&resource.path, &resource.read()?, 0)?;
     }
-    ensure!(
-        session.catalog.summary.textures > 0,
-        "no supported textures found; previous outputs preserved"
-    );
+    if session.catalog.summary.textures == 0 {
+        let details = session
+            .catalog
+            .issues
+            .iter()
+            .take(3)
+            .map(|issue| format!("{}: {}", issue.source, issue.message))
+            .collect::<Vec<_>>()
+            .join("; ");
+        let suffix = if details.is_empty() {
+            String::new()
+        } else {
+            format!(". First issues: {details}")
+        };
+        anyhow::bail!("no supported textures found; previous outputs preserved{suffix}");
+    }
     if let Some(old) = &workspace.old {
         for asset in &old.assets {
             if !session.catalog.assets.iter().any(|new| {

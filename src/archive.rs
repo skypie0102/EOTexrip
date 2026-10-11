@@ -13,7 +13,14 @@ pub struct Member {
 #[derive(Debug)]
 pub struct HpiIndex {
     pub members: Vec<Member>,
-    pub skipped_saves: Vec<String>,
+    pub issues: Vec<HpiIssue>,
+}
+
+#[derive(Debug)]
+pub struct HpiIssue {
+    pub name: String,
+    pub stage: &'static str,
+    pub message: String,
 }
 
 pub fn hpi(data: &[u8], hpb_size: u64) -> Result<HpiIndex> {
@@ -24,7 +31,7 @@ pub fn hpi(data: &[u8], hpb_size: u64) -> Result<HpiIndex> {
     let names = table + count * 16;
     bytes(data, table, count * 16)?;
     let mut out = Vec::with_capacity(count);
-    let mut skipped_saves = vec![];
+    let mut issues = vec![];
     for i in 0..count {
         let at = table + i * 16;
         let name = logical_path(&cstring(data, names + u32le(data, at)? as usize, 4096)?)?;
@@ -34,18 +41,29 @@ pub fn hpi(data: &[u8], hpb_size: u64) -> Result<HpiIndex> {
         let bounded = (offset as u64)
             .checked_add(size as u64)
             .is_some_and(|n| n <= hpb_size);
-        let lower = name.to_ascii_lowercase();
-        // Writable save entries can be indexed without an HPB payload. Only
-        // this exact non-texture namespace is exempt from member bounds.
-        if !bounded && lower.starts_with("savedata/") && lower.ends_with(".sav") {
-            skipped_saves.push(name);
+        // HPI indexes can contain unavailable entries in any namespace. Never
+        // read an invalid range, but keep other members available for extraction.
+        // A skipped texture is an explicit omission, not complete coverage.
+        if !bounded {
+            issues.push(HpiIssue {
+                name,
+                stage: "archive_member_bounds",
+                message: format!(
+                    "Unavailable HPI member skipped without reading: offset {offset}, stored size {size}, HPB size {hpb_size} (range outside HPB)"
+                ),
+            });
             continue;
         }
-        ensure!(bounded, "HPI member {name} outside HPB");
-        ensure!(
-            size <= MAX_RESOURCE && expanded_size <= MAX_RESOURCE,
-            "HPI member {name} exceeds resource limit"
-        );
+        if size > MAX_RESOURCE || expanded_size > MAX_RESOURCE {
+            issues.push(HpiIssue {
+                name,
+                stage: "resource_limit",
+                message: format!(
+                    "HPI member skipped without decoding: stored size {size}, expanded size {expanded_size}, resource limit {MAX_RESOURCE} bytes"
+                ),
+            });
+            continue;
+        }
         out.push(Member {
             name,
             offset,
@@ -55,7 +73,7 @@ pub fn hpi(data: &[u8], hpb_size: u64) -> Result<HpiIndex> {
     }
     Ok(HpiIndex {
         members: out,
-        skipped_saves,
+        issues,
     })
 }
 
