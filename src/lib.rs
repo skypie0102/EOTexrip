@@ -5,6 +5,7 @@ pub mod classify;
 pub mod naming;
 pub mod pica;
 pub mod pipeline;
+pub mod png_image;
 pub mod resources;
 pub mod rom;
 pub mod workspace;

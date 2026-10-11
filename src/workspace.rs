@@ -1,12 +1,13 @@
 use crate::{
     binary::logical_path,
-    catalog::{Catalog, Overrides},
+    catalog::{Catalog, Issue, Overrides, PngOrientation},
     naming,
+    png_image::Image,
 };
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fs::{self, File, OpenOptions},
     io::{BufWriter, Write},
     path::{Path, PathBuf},
@@ -250,6 +251,9 @@ impl Workspace {
         Ok(())
     }
     pub fn publish(&mut self, catalog: &mut Catalog) -> Result<()> {
+        catalog
+            .issues
+            .retain(|issue| issue.stage != "png_orientation");
         if let Some(old) = &self.old {
             ensure!(
                 old.title_id.is_none()
@@ -348,6 +352,10 @@ impl Workspace {
                                     category: Some(asset.category.category),
                                     name: Some(asset.name.clone()),
                                     confirmed: true,
+                                    png_orientation: effective_overrides
+                                        .assets
+                                        .get(&asset.id)
+                                        .and_then(|o| o.png_orientation),
                                 };
                                 effective_overrides
                                     .assets
@@ -395,10 +403,61 @@ impl Workspace {
                 if existing != relative {
                     fs::rename(master.join(existing), master.join(&relative))?;
                 }
+                if let Some(old) = old {
+                    asset.png_orientation = old.png_orientation;
+                    let orientation_choice = effective_overrides
+                        .assets
+                        .get(&asset.id)
+                        .filter(|o| o.confirmed)
+                        .and_then(|o| o.png_orientation)
+                        .or_else(|| {
+                            asset.aliases.iter().find_map(|id| {
+                                effective_overrides
+                                    .assets
+                                    .get(id)
+                                    .filter(|o| o.confirmed)
+                                    .and_then(|o| o.png_orientation)
+                            })
+                        });
+                    if let Some(orientation) = orientation_choice {
+                        asset.png_orientation = orientation;
+                    } else if old.png_orientation == PngOrientation::LegacyFlipped {
+                        let path = master.join(&relative);
+                        let mut image = Image::read(&path).with_context(||
+                            format!("cannot inspect legacy master {relative}; existing outputs preserved"))?;
+                        let original_matches = image
+                            .rgba8_digest(old.width, old.height)
+                            .is_some_and(|digest| digest == old.image_digest);
+                        image.flip_vertical();
+                        let upright_digest = image.rgba8_digest(old.width, old.height);
+                        if original_matches {
+                            image.write(&path)?;
+                            asset.image_digest = upright_digest.unwrap();
+                            asset.png_orientation = PngOrientation::Upright;
+                        } else if upright_digest.as_ref() == Some(&old.image_digest) {
+                            // The user already flipped an otherwise unchanged
+                            // alpha.1 original. Do not flip it a second time.
+                            image.flip_vertical();
+                            asset.image_digest = image.rgba8_digest(old.width, old.height).unwrap();
+                            asset.png_orientation = PngOrientation::Upright;
+                        } else {
+                            // Keep the original legacy fingerprint, so later
+                            // exports can still distinguish edits from originals.
+                            asset.image_digest = old.image_digest.clone();
+                        }
+                    }
+                }
             } else {
                 fs::copy(self.image_path(&asset.image_digest), master.join(&relative))?;
             }
             asset.master_file = relative;
+            if asset.png_orientation == PngOrientation::LegacyFlipped {
+                catalog.issues.push(Issue {
+                    source: asset.master_file.clone(),
+                    stage: "png_orientation".into(),
+                    message: "Edited legacy master preserved byte-for-byte. Deployment is normalized upright; after flipping the editable master yourself, confirm Upright in the app.".into(),
+                });
+            }
         }
         let mut mapping = BTreeMap::<String, String>::new();
         let mut names = BTreeMap::<String, String>::new();
@@ -480,7 +539,12 @@ impl Workspace {
                     }
                 }
             }
-            for name in mapping.values() {
+            let orientations: BTreeMap<_, _> = catalog
+                .assets
+                .iter()
+                .map(|a| (a.master_file.as_str(), a.png_orientation))
+                .collect();
+            for name in mapping.values().collect::<BTreeSet<_>>() {
                 let paths = files
                     .get(&name.to_lowercase())
                     .context("pack mapping references a missing master")?;
@@ -488,10 +552,17 @@ impl Workspace {
                 let relative = &paths[0];
                 let destination = target.join(relative);
                 fs::create_dir_all(destination.parent().unwrap())?;
-                fs::copy(master.join(relative), destination)?;
+                if orientations.get(relative.as_str()) == Some(&PngOrientation::LegacyFlipped) {
+                    let mut image = Image::read(&master.join(relative))?;
+                    image.flip_vertical();
+                    image.write(&destination)?;
+                } else {
+                    fs::copy(master.join(relative), destination)?;
+                }
             }
             write_json(&target.join("pack.json"), &pack)?;
         }
+        catalog.version = crate::VERSION.into();
         catalog.recount();
         write_json(&self.job.join("overrides.json"), &effective_overrides)?;
         write_json(&self.job.join("catalog.json"), catalog)?;
@@ -583,7 +654,17 @@ pub fn reassign(root: &Path, overrides: Overrides) -> Result<Catalog> {
         );
     }
     for (id, choice) in overrides.assets {
-        workspace.overrides.assets.insert(id, choice);
+        let saved = workspace.overrides.assets.entry(id).or_default();
+        if choice.category.is_some() {
+            saved.category = choice.category;
+        }
+        if choice.name.is_some() {
+            saved.name = choice.name;
+        }
+        if choice.png_orientation.is_some() {
+            saved.png_orientation = choice.png_orientation;
+        }
+        saved.confirmed = choice.confirmed;
     }
     for asset in &mut catalog.assets {
         let o = workspace.overrides.assets.get(&asset.id);

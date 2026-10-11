@@ -35,11 +35,11 @@ jobs:
       - name: Package and exercise the native executable
         shell: pwsh
         run: |
-          $version = '0.1.0-alpha.1'
+          $version = '0.1.0-alpha.2'
           $package = "EO-Texrip-$version-windows-x64"
           New-Item -ItemType Directory -Path "$package/docs" -Force | Out-Null
           Copy-Item target/release/EO-Texrip.exe,target/release/eotexrip.exe,README.md,LICENSE,THIRD_PARTY.md,DEPENDENCY_LICENSES.yml $package
-          Copy-Item docs/USER_GUIDE.md,docs/SUPPORT.md "$package/docs"
+          Copy-Item docs/USER_GUIDE.md,docs/SUPPORT.md,docs/RELEASE_NOTES.md "$package/docs"
           Copy-Item -Recurse licenses "$package/licenses"
           & "$package/eotexrip.exe" demo --output "$package/Demo/Input"
           if ($LASTEXITCODE -ne 0) { throw 'Packaged demo generator failed' }
@@ -49,6 +49,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Packaged export failed' }
           $catalog = Get-Content "$package/Demo/Workspace/.eouhd/catalog.json" -Raw | ConvertFrom-Json
           if ($catalog.summary.unique_images -ne 10) { throw 'Demo image count is incorrect' }
+          if (@($catalog.assets | Where-Object { $_.png_orientation -ne 'upright' }).Count -ne 0) { throw 'Demo PNG orientation is incorrect' }
           $startupLog = Join-Path (Resolve-Path $package).Path 'gui-startup.log'
           $stderrLog = Join-Path (Resolve-Path $package).Path 'gui-stderr.log'
           $gui = Start-Process -FilePath "$package/EO-Texrip.exe" -ArgumentList "--smoke-test --startup-log `"$startupLog`"" -RedirectStandardError $stderrLog -PassThru
@@ -64,9 +65,9 @@ jobs:
           "$($zip.Hash.ToLower())  $package.zip" | Set-Content "$package.zip.sha256"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: EO-Texrip-0.1.0-alpha.1-windows-x64
+          name: EO-Texrip-0.1.0-alpha.2-windows-x64
           path: |
-            EO-Texrip-0.1.0-alpha.1-windows-x64.zip
-            EO-Texrip-0.1.0-alpha.1-windows-x64.zip.sha256
+            EO-Texrip-0.1.0-alpha.2-windows-x64.zip
+            EO-Texrip-0.1.0-alpha.2-windows-x64.zip.sha256
           if-no-files-found: error
           retention-days: 30

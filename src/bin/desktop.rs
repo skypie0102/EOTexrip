@@ -1,7 +1,7 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 use eframe::egui;
 use eotexrip::{
-    catalog::{Catalog, Category, Game, Override, Overrides},
+    catalog::{Catalog, Category, Game, Override, Overrides, PngOrientation},
     pipeline, workspace,
 };
 use std::{
@@ -42,6 +42,7 @@ struct App {
     selected: Option<usize>,
     edit_name: String,
     edit_category: Category,
+    edit_orientation: PngOrientation,
     same_source: bool,
     choices: Overrides,
     pending: usize,
@@ -70,6 +71,7 @@ impl Default for App {
             selected: None,
             edit_name: String::new(),
             edit_category: Category::Misc,
+            edit_orientation: PngOrientation::Upright,
             same_source: false,
             choices: Overrides::default(),
             pending: 0,
@@ -170,6 +172,7 @@ impl App {
         if let Some(asset) = self.catalog.as_ref().and_then(|c| c.assets.get(index)) {
             self.edit_name = asset.name.clone();
             self.edit_category = asset.category.category;
+            self.edit_orientation = asset.png_orientation;
             if !self.metadata_only {
                 match read_image(
                     &Path::new(&self.output)
@@ -209,6 +212,14 @@ impl App {
                 category: Some(self.edit_category),
                 name,
                 confirmed: true,
+                png_orientation: if is_selected
+                    && !self.metadata_only
+                    && self.edit_orientation != selected.png_orientation
+                {
+                    Some(self.edit_orientation)
+                } else {
+                    self.choices.assets.get(&id).and_then(|o| o.png_orientation)
+                },
             };
             self.choices.assets.insert(id, choice.clone());
             for alias in aliases {
@@ -445,7 +456,10 @@ impl App {
             .iter()
             .enumerate()
             .filter(|(_, a)| {
-                (!self.review_only || a.category.needs_review || a.name_needs_review)
+                (!self.review_only
+                    || a.category.needs_review
+                    || a.name_needs_review
+                    || !self.metadata_only && a.png_orientation == PngOrientation::LegacyFlipped)
                     && self
                         .category_filter
                         .is_none_or(|c| a.category.category == c)
@@ -542,6 +556,18 @@ impl App {
                         ui.add_enabled_ui(self.receiver.is_none(), |ui| {
                             ui.label("Confirmed filename");
                             ui.text_edit_singleline(&mut self.edit_name);
+                            if !self.metadata_only {
+                                ui.label("PNG orientation");
+                                egui::ComboBox::from_id_salt("png_orientation")
+                                    .selected_text(self.edit_orientation.label())
+                                    .show_ui(ui, |ui| {
+                                        ui.selectable_value(&mut self.edit_orientation, PngOrientation::Upright, "Upright");
+                                        ui.selectable_value(&mut self.edit_orientation, PngOrientation::LegacyFlipped, "Legacy flipped");
+                                    });
+                                if asset.png_orientation == PngOrientation::LegacyFlipped {
+                                    ui.label("Edited legacy PNG retained. Select Upright after flipping this master in your image editor.");
+                                }
+                            }
                             egui::ComboBox::from_id_salt("edit_category")
                                 .selected_text(self.edit_category.folder())
                                 .show_ui(ui, |ui| {
@@ -835,5 +861,21 @@ mod tests {
             Some("confirmed_name")
         );
         assert!(app.choices.assets[&a.id].confirmed);
+        // Category batching must not flip unrelated images from the model.
+        let selected_id = a.id.clone();
+        let mut other = a.clone();
+        other.id = "other_texture_in_source".into();
+        other.aliases.clear();
+        let other_id = other.id.clone();
+        app.catalog.as_mut().unwrap().assets.push(other);
+        app.catalog.as_mut().unwrap().assets[0].png_orientation = PngOrientation::LegacyFlipped;
+        app.edit_orientation = PngOrientation::Upright;
+        app.same_source = true;
+        app.queue_choice();
+        assert_eq!(
+            app.choices.assets[&selected_id].png_orientation,
+            Some(PngOrientation::Upright)
+        );
+        assert_eq!(app.choices.assets[&other_id].png_orientation, None);
     }
 }

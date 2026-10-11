@@ -1,22 +1,30 @@
-This is the first working native rebuild, version 0.1.0-alpha.1. The lost
-0.73.0 binaries and source were not recovered; this release uses a new version
-series and does not inherit historical compatibility claims.
+# EO-Texrip 0.1.0-alpha.2
 
-Extract the ZIP and open `EO-Texrip.exe`. No Python, Cargo, or Git installation
-is required. A small synthetic `Demo` workspace is included.
+Untold 1 extraction no longer stops on an HPI save-data placeholder such as
+`SAVEDATA/MO1R04_GAME.SAV` outside the HPB payload. These save entries are
+reported and skipped. Out-of-bounds texture/resource entries remain errors.
 
-The app provides decrypted ROM/RomFS/resource-folder extraction, all 14 PICA
-formats, flat categories, readable source-based names, PNG previews, evidence
-review, persistent confirmed corrections, protected editable masters, and
-Azahar pack rebuilding. CI exercises Linux and Windows tests and the packaged
-Windows CLI with synthetic data, then opens and closes the native desktop.
+Extracted PNGs now use upright artwork row order in all 14 PICA formats,
+including ETC1 and ETC1A4. Runtime hashes still cover the original base-mip bytes.
+Azahar's `flip_png_files=true` remains necessary for its GPU loading convention.
 
-Classification was replayed against 14,456 recovered metadata records from the
-five mainline 3DS games. The aggregate report records assignments and unresolved
-reviews; these are coverage measurements, not verified accuracy percentages.
+Load an existing alpha.1 workspace and rebuild its emulator pack to upgrade it.
+Unedited originals are repaired once. Already-flipped originals are recognized.
+Edited/upscaled masters retain their bytes, with an upright deployment copy and
+an orientation review item. After fixing an editable master yourself, confirm
+**PNG orientation: Upright**. See `USER_GUIDE.md` for the complete upgrade steps.
 
-Known limits: retail-ROM pixel and in-emulator validation of this rebuild is
-pending. TMX, nonstandard CTPK payloads, some archive variants, material-linked
-separate alpha masks, and Mystery Dungeon profiles are not claimed as complete.
-Uncertain identities remain reviewable; filenames do not invent English enemy
-or NPC names. See `docs/SUPPORT.md` and `docs/USER_GUIDE.md`.
+Regression fixtures cover the reported save entry, strict resource bounds,
+asymmetric rows in every format across tile boundaries, repeated workspace
+upgrades, edited 16-bit upscales, and indexed PNG transparency. Windows packaging
+also exercises the CLI and opens/closes the native GUI.
+
+Parser behavior and orientation were checked against the original
+[UntoldUnpack archive reader](https://github.com/xdanieldzd/UntoldUnpack/blob/2c5aebcc17a69262f5529f36c682d50f968a33ac/UntoldUnpack/Archive.cs)
+and Azahar's pinned
+[texture codec](https://github.com/azahar-emu/azahar/blob/5f3306d13cab40bbd5cf38f2cf3ae8b6e6eedca6/src/video_core/rasterizer_cache/texture_codec.h),
+[dumping](https://github.com/azahar-emu/azahar/blob/5f3306d13cab40bbd5cf38f2cf3ae8b6e6eedca6/src/video_core/custom_textures/custom_tex_manager.cpp),
+and [PNG loading](https://github.com/azahar-emu/azahar/blob/5f3306d13cab40bbd5cf38f2cf3ae8b6e6eedca6/src/video_core/custom_textures/material.cpp).
+Full retail-ROM and in-emulator validation remains pending; this release does
+not claim complete categorization or extraction coverage. Support gaps remain
+documented in `SUPPORT.md`.

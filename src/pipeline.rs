@@ -190,6 +190,7 @@ impl<F: FnMut(Progress)> Session<'_, F> {
                             runtime_hashes: vec![hash],
                             hash_evidence: "structural_pica_base_mip".into(),
                             image_digest,
+                            png_orientation: crate::catalog::PngOrientation::Upright,
                             category: decision,
                             name,
                             name_basis: basis,
@@ -284,7 +285,14 @@ pub fn extract(
         consumed.insert(resource.path.to_lowercase());
         let members = archive::hpi(&resource.read()?, payload.size)
             .with_context(|| format!("invalid HPI index {}", resource.path))?;
-        for member in members {
+        for name in members.skipped_saves {
+            session.issue(
+                &format!("{}/{name}", resource.path),
+                "archive_save_entry",
+                "Skipped save-data index entry with no bounded HPB payload; save files are not texture resources",
+            );
+        }
+        for member in members.members {
             ensure!(
                 !cancel.load(Ordering::Relaxed),
                 "extraction cancelled; previous outputs preserved"
@@ -462,6 +470,7 @@ pub fn replay(path: &Path, override_path: Option<&Path>) -> Result<Catalog> {
             runtime_hashes: hashes,
             hash_evidence: "historical_metadata_only".into(),
             image_digest: String::new(),
+            png_orientation: crate::catalog::PngOrientation::Upright,
             category: decision,
             name,
             name_basis: basis,

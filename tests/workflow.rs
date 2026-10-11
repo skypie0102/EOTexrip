@@ -34,6 +34,60 @@ fn input(root: &Path) {
     fs::write(root.join("MORI1R.HPB"), payload).unwrap();
 }
 #[test]
+fn untold_save_placeholder_does_not_block_texture_extraction() {
+    let t = tempfile::tempdir().unwrap();
+    let i = t.path().join("in");
+    let o = t.path().join("out");
+    fs::create_dir_all(&i).unwrap();
+    let (mut index, payload) = hpi(&[
+        ("SAVEDATA/MO1R04_GAME.SAV", vec![]),
+        (
+            "STEX/KEYBOARD/KATAKANA/IG_KEY_KATAKANA045.STEX",
+            stex("", 7, 0),
+        ),
+        ("STEX/FACILITY/BG/IG_FAC_BG_05.STEX", stex("", 8, 0)),
+    ]);
+    word(&mut index, 28, u32::MAX);
+    word(&mut index, 32, 4096);
+    fs::write(i.join("MORI1R.HPI"), index).unwrap();
+    fs::write(i.join("MORI1R.HPB"), payload).unwrap();
+    let c = extract(&i, &o).unwrap();
+    assert_eq!(c.summary.unique_images, 2);
+    assert_eq!(c.issues.len(), 1);
+    assert_eq!(c.issues[0].stage, "archive_save_entry");
+    assert!(c.issues[0].source.ends_with("SAVEDATA/MO1R04_GAME.SAV"));
+    assert!(c.assets.iter().all(|a| !a.source.contains("SAVEDATA")));
+}
+#[test]
+fn out_of_bounds_resources_still_fail_and_preserve_existing_outputs() {
+    let t = tempfile::tempdir().unwrap();
+    let i = t.path().join("in");
+    let o = t.path().join("out");
+    input(&i);
+    let c = extract(&i, &o).unwrap();
+    let before_pack = fs::read(o.join("azahar_pack_master/pack.json")).unwrap();
+    let a = &c.assets[0];
+    let master = o.join("azahar_pack_master").join(&a.master_file);
+    let before_master = fs::read(&master).unwrap();
+    for name in [
+        "STEX/BAD.STEX",
+        "SAVEDATA/BAD.STEX",
+        "OTHER/BAD.SAV",
+        "SAVEDATA/../BAD.SAV",
+    ] {
+        let (mut index, payload) = hpi(&[(name, stex("", 9, 0))]);
+        word(&mut index, 28, u32::MAX);
+        fs::write(i.join("MORI1R.HPI"), index).unwrap();
+        fs::write(i.join("MORI1R.HPB"), payload).unwrap();
+        assert!(extract(&i, &o).is_err(), "must reject {name}");
+        assert_eq!(fs::read(&master).unwrap(), before_master);
+        assert_eq!(
+            fs::read(o.join("azahar_pack_master/pack.json")).unwrap(),
+            before_pack
+        );
+    }
+}
+#[test]
 fn real_archive_to_flat_pack_preserves_hash_span_and_orientation() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path();
@@ -60,8 +114,8 @@ fn real_archive_to_flat_pack_preserves_hash_span_and_orientation() {
         .unwrap();
     let mut pixels = vec![0; r.output_buffer_size().unwrap()];
     r.next_frame(&mut pixels).unwrap();
-    assert_eq!(&pixels[7 * 8 * 4..7 * 8 * 4 + 4], &[0, 20, 7, 255]);
-    assert_eq!(&pixels[..4], &[42, 20, 7, 255]);
+    assert_eq!(&pixels[..4], &[0, 20, 7, 255]);
+    assert_eq!(&pixels[7 * 8 * 4..7 * 8 * 4 + 4], &[42, 20, 7, 255]);
     let bg = c
         .assets
         .iter()
@@ -76,6 +130,9 @@ fn real_archive_to_flat_pack_preserves_hash_span_and_orientation() {
     )
     .unwrap();
     assert_eq!(pack["options"]["use_new_hash"], true);
+    // Azahar's GPU decode reverses rows; its PNG loader performs that
+    // reversal once. Editable and deployed PNGs both keep artwork order.
+    assert_eq!(pack["options"]["flip_png_files"], true);
     assert_eq!(pack["textures"].as_object().unwrap().len(), 4);
     assert!(!root.join("out/.eouhd/journal.json").exists());
     assert!(
@@ -109,6 +166,7 @@ fn edited_upscaled_master_and_confirmed_choices_survive_rerun() {
             category: Some(Category::Ui),
             name: Some("my readable texture".into()),
             confirmed: true,
+            png_orientation: None,
         },
     );
     let changed = workspace::reassign(&out, choices).unwrap();

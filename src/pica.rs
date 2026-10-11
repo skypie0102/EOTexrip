@@ -118,8 +118,9 @@ fn etc_block(block: &[u8]) -> Result<[[u8; 3]; 16]> {
     Ok(out)
 }
 
-/// PNGs are top-down; PICA tiles are bottom-up. Cropping uses the visible
-/// dimensions, while the byte span includes full padded 8x8 storage tiles.
+/// Untile to the source artwork's PNG row order. Azahar applies the GPU row
+/// reversal on loading (`flip_png_files=true`); editable PNGs must not include
+/// that reversal. Storage byte spans still include full padded 8x8 tiles.
 pub fn decode(data: &[u8], width: u32, height: u32, format: u32) -> Result<Vec<u8>> {
     let required = base_size(width, height, format)?;
     ensure!(
@@ -136,7 +137,7 @@ pub fn decode(data: &[u8], width: u32, height: u32, format: u32) -> Result<Vec<u
             for x in 0..w {
                 let index = ((y / 8) * tx + x / 8) * 64 + morton(x % 8, y % 8);
                 let pixel = pixel(data, index, format);
-                let at = ((h - 1 - y) * w + x) * 4;
+                let at = (y * w + x) * 4;
                 out[at..at + 4].copy_from_slice(&pixel);
             }
         }
@@ -157,7 +158,7 @@ pub fn decode(data: &[u8], width: u32, height: u32, format: u32) -> Result<Vec<u
                         let x = mx * 8 + (sub % 2) * 4 + j / 4;
                         let y = my * 8 + (sub / 2) * 4 + j % 4;
                         if x < w && y < h {
-                            let dest = ((h - 1 - y) * w + x) * 4;
+                            let dest = (y * w + x) * 4;
                             out[dest..dest + 3].copy_from_slice(&pixel);
                             out[dest + 3] = ((alpha >> (j * 4)) & 15) as u8 * 17;
                         }
@@ -186,7 +187,7 @@ mod tests {
         let mut data = vec![0u8; base_size(9, 5, 0).unwrap()];
         data[..4].copy_from_slice(&[80, 30, 20, 10]);
         let out = decode(&data, 9, 5, 0).unwrap();
-        assert_eq!(&out[(4 * 9) * 4..(4 * 9) * 4 + 4], &[10, 20, 30, 80]);
+        assert_eq!(&out[..4], &[10, 20, 30, 80]);
         assert_eq!(base_size(9, 5, 0).unwrap(), 512);
         assert!(decode(&data[..511], 9, 5, 0).is_err());
         let out = decode(&[1, 2].repeat(64), 8, 8, 6).unwrap();
@@ -203,9 +204,90 @@ mod tests {
         let mut bytes = vec![0; 64];
         bytes[..8].copy_from_slice(&0xFEDCBA9876543210u64.to_le_bytes());
         let out = decode(&bytes, 8, 8, 13).unwrap();
-        assert_eq!(out[(7 * 8) * 4 + 3], 0);
-        assert_eq!(out[(6 * 8) * 4 + 3], 17);
-        assert_eq!(out[(7 * 8 + 1) * 4 + 3], 68);
+        assert_eq!(out[3], 0);
+        assert_eq!(out[8 * 4 + 3], 17);
+        assert_eq!(out[4 + 3], 68);
+    }
+    #[test]
+    fn artwork_rows_stay_upright_in_every_format_and_across_tile_rows() {
+        // Independent source-storage positions: (0,7)=42, (0,15)=106,
+        // and (8,8)=192 in padded 8x8 Morton tiles.
+        type RowCase = (&'static [u8], &'static [u8], [u8; 4], [u8; 4]);
+        let raw_cases: &[RowCase] = &[
+            (
+                &[255, 3, 2, 1],
+                &[255, 6, 5, 4],
+                [1, 2, 3, 255],
+                [4, 5, 6, 255],
+            ),
+            (&[3, 2, 1], &[6, 5, 4], [1, 2, 3, 255], [4, 5, 6, 255]),
+            (&[1, 248], &[63, 0], [255, 0, 0, 255], [0, 0, 255, 255]),
+            (&[0, 248], &[31, 0], [255, 0, 0, 255], [0, 0, 255, 255]),
+            (&[15, 240], &[255, 0], [255, 0, 0, 255], [0, 0, 255, 255]),
+            (
+                &[255, 200],
+                &[255, 20],
+                [200, 200, 200, 255],
+                [20, 20, 20, 255],
+            ),
+            (&[2, 1], &[5, 4], [1, 2, 0, 255], [4, 5, 0, 255]),
+            (&[200], &[20], [200, 200, 200, 255], [20, 20, 20, 255]),
+            (&[200], &[20], [255, 255, 255, 200], [255, 255, 255, 20]),
+            (&[248], &[24], [255, 255, 255, 136], [17, 17, 17, 136]),
+            (&[1], &[14], [17, 17, 17, 255], [238, 238, 238, 255]),
+            (&[1], &[14], [255, 255, 255, 17], [255, 255, 255, 238]),
+        ];
+        for (width, height, bottom_index, bottom_x) in
+            [(8, 8, 42, 0), (8, 16, 106, 0), (9, 9, 192, 8)]
+        {
+            for (format, &(top, bottom, top_rgba, bottom_rgba)) in raw_cases.iter().enumerate() {
+                let mut bytes = vec![0; base_size(width, height, format as u32).unwrap()];
+                bytes[..top.len()].copy_from_slice(top);
+                let at = bottom_index * BITS[format] / 8;
+                bytes[at..at + bottom.len()].copy_from_slice(bottom);
+                let decoded = decode(&bytes, width, height, format as u32).unwrap();
+                assert_eq!(
+                    &decoded[..4],
+                    &top_rgba,
+                    "{} top {width}x{height}",
+                    FORMAT_NAMES[format]
+                );
+                let at = (((height - 1) * width + bottom_x) * 4) as usize;
+                assert_eq!(
+                    &decoded[at..at + 4],
+                    &bottom_rgba,
+                    "{} bottom {width}x{height}",
+                    FORMAT_NAMES[format]
+                );
+            }
+            for format in [12, 13] {
+                let stride = if format == 13 { 16 } else { 8 };
+                let mut bytes = vec![0; base_size(width, height, format).unwrap()];
+                for (block, data) in bytes.chunks_exact_mut(stride).enumerate() {
+                    let bottom = match (width, height) {
+                        (8, 8) => block >= 2,
+                        (8, 16) => block >= 4,
+                        (9, 9) => block >= 8,
+                        _ => unreachable!(),
+                    };
+                    let color = if bottom { 0x0000f000u64 } else { 0xf0000000u64 } << 32;
+                    let rgb_at = if format == 13 {
+                        data[..8].fill(if bottom { 0x11 } else { 0xff });
+                        8
+                    } else {
+                        0
+                    };
+                    data[rgb_at..rgb_at + 8].copy_from_slice(&color.to_le_bytes());
+                }
+                let decoded = decode(&bytes, width, height, format).unwrap();
+                assert_eq!(&decoded[..4], &[255, 2, 2, 255]);
+                let at = (((height - 1) * width + bottom_x) * 4) as usize;
+                assert_eq!(
+                    &decoded[at..at + 4],
+                    &[2, 2, 255, if format == 13 { 17 } else { 255 }]
+                );
+            }
+        }
     }
     #[test]
     fn tiles_do_not_shift_after_partial_dimensions() {
