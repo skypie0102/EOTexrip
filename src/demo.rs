@@ -20,7 +20,7 @@ pub fn create(root: &Path) -> Result<()> {
             "STEX/KEYBOARD/KATAKANA/IG_KEY_KATAKANA01.STEX",
             "ig_key_katakana01",
         ),
-        ("UNKNOWN/DEMO.STEX", "demo_unknown"),
+        ("UNKNOWN/日本/表ソ.STEX", "demo_unknown"),
     ];
     let mut index = vec![0u8; 24 + entries.len() * 16];
     index[..4].copy_from_slice(b"HPIH");
@@ -55,7 +55,9 @@ pub fn create(root: &Path) -> Result<()> {
         for (field, value) in [(0, names.len()), (4, payload.len()), (8, image.len())] {
             index[at + field..at + field + 4].copy_from_slice(&(value as u32).to_le_bytes());
         }
-        names.extend_from_slice(source.as_bytes());
+        let (encoded, _, unmappable) = encoding_rs::SHIFT_JIS.encode(source);
+        ensure!(!unmappable, "demo filename cannot be encoded as Shift-JIS");
+        names.extend_from_slice(&encoded);
         names.push(0);
         payload.extend(image);
     }

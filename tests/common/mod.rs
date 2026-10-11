@@ -24,6 +24,14 @@ pub fn stex(name: &str, seed: u8, mips: usize) -> Vec<u8> {
     d
 }
 pub fn hpi(entries: &[(&str, Vec<u8>)]) -> (Vec<u8>, Vec<u8>) {
+    hpi_bytes(
+        &entries
+            .iter()
+            .map(|(name, data)| (name.as_bytes(), data.clone()))
+            .collect::<Vec<_>>(),
+    )
+}
+pub fn hpi_bytes(entries: &[(&[u8], Vec<u8>)]) -> (Vec<u8>, Vec<u8>) {
     let mut index = vec![0; 24 + entries.len() * 16];
     index[..4].copy_from_slice(b"HPIH");
     short(&mut index, 20, entries.len() as u16);
@@ -34,7 +42,7 @@ pub fn hpi(entries: &[(&str, Vec<u8>)]) -> (Vec<u8>, Vec<u8>) {
         word(&mut index, at, names.len() as u32);
         word(&mut index, at + 4, payload.len() as u32);
         word(&mut index, at + 8, data.len() as u32);
-        names.extend_from_slice(name.as_bytes());
+        names.extend_from_slice(name);
         names.push(0);
         payload.extend_from_slice(data);
     }
