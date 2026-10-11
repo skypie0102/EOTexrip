@@ -4,7 +4,7 @@ A native desktop app for extracting Nintendo 3DS Etrian Odyssey textures,
 organizing and renaming them, protecting editable masters, and preparing Azahar
 replacement packs for PC and Steam Deck.
 
-**The app has been rebuilt from scratch in Rust.** Version `0.1.0-alpha.3`
+**The app has been rebuilt from scratch in Rust.** Version `0.1.0-alpha.4`
 includes a Windows GUI, CLI, native parsers/decoder, provenance-based category
 rules, texture previews, saved corrections, and staged pack publication.
 The lost project's recorded `0.73.0` release is historical evidence, not this
@@ -13,8 +13,8 @@ rebuild's version or a compatibility guarantee.
 ## Download and use
 
 Download the Windows x64 ZIP from the newest successful
-[Windows package workflow](https://github.com/skypie0102/EOTexrip/actions/workflows/build.yml?query=branch%3Amain):
-open the run, then download its `EO-Texrip-0.1.0-alpha.3-windows-x64` artifact.
+[Windows package workflow](https://github.com/skypie0102/EOTexrip/actions/workflows/build.yml):
+open the successful run for this version, then download its `EO-Texrip-0.1.0-alpha.4-windows-x64` artifact.
 Extract the outer artifact ZIP and then the app ZIP inside it. Open
 `EO-Texrip.exe`. End users do not install Python, Cargo, Git, or separate
 extraction tools. The package includes a synthetic demo. GitHub requires a
@@ -35,9 +35,10 @@ with an account or token that has release permission.
 The categories stay flat: `characters`, `monsters`, `ui`, `icons`, `maps`,
 `dungeon`, `backgrounds`, `effects`, `fonts`, and `misc`.
 
-Alpha.3 continues extraction when individual HPI members are unavailable,
-oversized, or fail decompression; their paths and reasons appear in the issue
-report. It also includes upright PNGs. For an existing alpha.1 workspace,
+Alpha.4 decodes HPI filenames with Windows Shift-JIS (CP932), preserving
+Japanese names and multibyte characters. Unavailable, oversized, undecodable,
+or corrupt individual members are reported while valid textures continue
+extracting. It also includes upright PNGs. For an existing alpha.1 workspace,
 load it and **Rebuild emulator pack**:
 unedited originals are repaired once, while edited masters stay intact. See
 [the upgrade instructions](docs/USER_GUIDE.md#upgrade-an-alpha1-workspace).

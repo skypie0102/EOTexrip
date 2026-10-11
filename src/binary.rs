@@ -40,14 +40,17 @@ pub fn relative(data: &[u8], field: usize) -> Result<usize> {
     );
     Ok(value as usize)
 }
-pub fn cstring(data: &[u8], offset: usize, limit: usize) -> Result<String> {
+pub fn cstring_bytes(data: &[u8], offset: usize, limit: usize) -> Result<&[u8]> {
     ensure!(offset < data.len(), "string outside resource");
     let tail = &data[offset..data.len().min(offset.saturating_add(limit))];
     let end = tail
         .iter()
         .position(|&x| x == 0)
         .ok_or_else(|| anyhow::anyhow!("unterminated string"))?;
-    Ok(std::str::from_utf8(&tail[..end])?.to_owned())
+    Ok(&tail[..end])
+}
+pub fn cstring(data: &[u8], offset: usize, limit: usize) -> Result<String> {
+    Ok(std::str::from_utf8(cstring_bytes(data, offset, limit)?)?.to_owned())
 }
 pub fn logical_path(value: &str) -> Result<String> {
     let value = value.replace('\\', "/");

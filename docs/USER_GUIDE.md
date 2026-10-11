@@ -73,7 +73,7 @@ normal emulator upscale batch.
 
 ## Upgrade an alpha.1 workspace
 
-Use alpha.3 to **Load workspace**, then **Rebuild emulator pack**. You do not
+Use alpha.4 to **Load workspace**, then **Rebuild emulator pack**. You do not
 need to extract the ROM again. Untouched alpha.1 PNGs are flipped upright once;
 names, categories, and runtime hash mappings remain attached to the same assets.
 An otherwise unchanged original that you already flipped is detected and kept.
@@ -90,8 +90,13 @@ Copy the rebuilt deployment folder into Azahar again. Keep
 `flip_png_files=true`: Azahar applies its GPU row reversal when loading the
 upright PNG. Changing this setting would undo the correction in the emulator.
 
-For Untold 1, retry extraction with alpha.3. Individual HPI entries outside the
-HPB payload are reported and skipped regardless of filename. Known audio,
+For Untold 1, retry extraction with alpha.4. HPI filenames are decoded with
+Windows Shift-JIS (CP932), including Japanese characters and Windows extensions.
+An undecodable member name is skipped and reported by index entry number and
+raw filename bytes, without inventing a replacement name.
+
+Individual HPI entries outside the HPB payload are reported and skipped
+regardless of filename. Known audio,
 video, and save files are excluded from texture decoding. An oversized member
 or a failed ACMP member is also reported while other resources continue.
 

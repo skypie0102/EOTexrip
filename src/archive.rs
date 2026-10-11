@@ -1,5 +1,6 @@
 use crate::binary::*;
 use anyhow::{Result, ensure};
+use encoding_rs::SHIFT_JIS;
 
 pub const MAX_RESOURCE: usize = 256 * 1024 * 1024;
 #[derive(Debug)]
@@ -34,7 +35,33 @@ pub fn hpi(data: &[u8], hpb_size: u64) -> Result<HpiIndex> {
     let mut issues = vec![];
     for i in 0..count {
         let at = table + i * 16;
-        let name = logical_path(&cstring(data, names + u32le(data, at)? as usize, 4096)?)?;
+        let name_offset = names
+            .checked_add(u32le(data, at)? as usize)
+            .ok_or_else(|| anyhow::anyhow!("HPI filename offset overflow"))?;
+        let raw_name = cstring_bytes(data, name_offset, 4096)?;
+        // UntoldUnpack reads this table with Windows code page 932. Decode
+        // before normalizing separators: 0x5c can be a multibyte trail byte.
+        let Some(decoded_name) =
+            SHIFT_JIS.decode_without_bom_handling_and_without_replacement(raw_name)
+        else {
+            let mut hex = String::with_capacity(128);
+            for byte in raw_name.iter().take(64) {
+                use std::fmt::Write;
+                write!(hex, "{byte:02x}")?;
+            }
+            if raw_name.len() > 64 {
+                hex.push_str("...");
+            }
+            issues.push(HpiIssue {
+                name: format!("[entry {i}]"),
+                stage: "archive_member_name",
+                message: format!(
+                    "HPI filename is not valid Windows Shift-JIS (CP932); member skipped without reading. Entry {i}, filename offset {name_offset}, raw name bytes (hex, up to 64 bytes): {hex}"
+                ),
+            });
+            continue;
+        };
+        let name = logical_path(&decoded_name)?;
         let offset = u32le(data, at + 4)? as usize;
         let size = u32le(data, at + 8)? as usize;
         let expanded_size = u32le(data, at + 12)? as usize;

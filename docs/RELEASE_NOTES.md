@@ -1,4 +1,26 @@
-# EO-Texrip 0.1.0-alpha.3
+# EO-Texrip 0.1.0-alpha.4
+
+Untold 1 reported `invalid utf-8 sequence of 1 bytes from index 24` when
+reading `MORI1R.HPI`. The index reader incorrectly assumed UTF-8 filenames.
+Alpha.4 uses Windows Shift-JIS (CP932), as the original UntoldUnpack reader
+does. Japanese paths, half-width katakana, and Windows character extensions
+retain their decoded identities. Path separators are normalized after decoding,
+so a backslash byte inside a multibyte character cannot split its name.
+
+An undecodable member name is skipped without reading its payload. Its index
+entry number and raw filename bytes are recorded in Extraction issues and the
+saved report. No replacement characters or guessed names are substituted.
+Valid members before and after it continue to extract. Out-of-range filename
+pointers, unterminated names, unsafe paths, and damaged tables remain fatal.
+
+Regression fixtures cover independently specified CP932 bytes, characters with
+backslash trail bytes, Windows extensions, bytes that could be misread as UTF-8,
+ASCII correction identity preservation, malformed-name isolation, partial reruns,
+and zero-texture output preservation. The Windows package also extracts and
+exports a synthetic texture with a CP932 Japanese source path, then checks its
+decoded name before opening and closing the native GUI.
+
+The earlier archive and orientation corrections are retained:
 
 Alpha.2 exempted only save-data placeholders. That was too narrow: Untold 1
 also reported `SND/MORI1R/STREAM/NBGM_BATTLE2.DSPADPCM.BCSTM` outside the HPB.
@@ -10,7 +32,8 @@ before and after it continue to extract.
 Known audio, video, and save files are excluded from texture decoding. Members
 over the decode budget or with invalid ACMP data are reported individually.
 Unavailable texture members remain explicit coverage gaps, and previously
-edited masters survive partial reruns. Malformed index tables/names, missing
+edited masters survive partial reruns. Malformed index tables, unsafe or
+unbounded names, missing
 HPB files, cancellation, job-wide limits, and zero-texture runs remain fatal.
 
 Extracted PNGs now use upright artwork row order in all 14 PICA formats,
