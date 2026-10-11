@@ -1,8 +1,17 @@
-# EO-Texrip 0.1.0-alpha.2
+# EO-Texrip 0.1.0-alpha.3
 
-Untold 1 extraction no longer stops on an HPI save-data placeholder such as
-`SAVEDATA/MO1R04_GAME.SAV` outside the HPB payload. These save entries are
-reported and skipped. Out-of-bounds texture/resource entries remain errors.
+Alpha.2 exempted only save-data placeholders. That was too narrow: Untold 1
+also reported `SND/MORI1R/STREAM/NBGM_BATTLE2.DSPADPCM.BCSTM` outside the HPB.
+Alpha.3 handles unavailable entries individually, regardless of namespace.
+An invalid byte range is never read; its path, offset, stored size, and HPB
+size are recorded in Extraction issues and the saved report. Valid members
+before and after it continue to extract.
+
+Known audio, video, and save files are excluded from texture decoding. Members
+over the decode budget or with invalid ACMP data are reported individually.
+Unavailable texture members remain explicit coverage gaps, and previously
+edited masters survive partial reruns. Malformed index tables/names, missing
+HPB files, cancellation, job-wide limits, and zero-texture runs remain fatal.
 
 Extracted PNGs now use upright artwork row order in all 14 PICA formats,
 including ETC1 and ETC1A4. Runtime hashes still cover the original base-mip bytes.
@@ -14,7 +23,9 @@ Edited/upscaled masters retain their bytes, with an upright deployment copy and
 an orientation review item. After fixing an editable master yourself, confirm
 **PNG orientation: Upright**. See `USER_GUIDE.md` for the complete upgrade steps.
 
-Regression fixtures cover the reported save entry, strict resource bounds,
+Regression fixtures cover both reported save/sound entries, unavailable unknown
+and texture entries, decode limits, corrupt members, partial rerun preservation,
+strict index structure,
 asymmetric rows in every format across tile boundaries, repeated workspace
 upgrades, edited 16-bit upscales, and indexed PNG transparency. Windows packaging
 also exercises the CLI and opens/closes the native GUI.

@@ -1,4 +1,4 @@
-# Support boundaries for 0.1.0-alpha.2
+# Support boundaries for 0.1.0-alpha.3
 
 The rebuild is a usable native alpha. Historical tests of the lost application
 are not tests of this implementation.
@@ -6,7 +6,7 @@ are not tests of this implementation.
 | Area | Implemented | Validation / remaining work |
 | --- | --- | --- |
 | Decrypted NCSD, NCCH, CIA, RomFS | Bounded file traversal and title detection | Synthetic end-to-end fixtures; no current retail input available |
-| HPI/HPB + ACMP | Native index/member reads, bounded backward decompression; out-of-payload SAVEDATA/*.SAV placeholders reported and skipped | Untold save placeholder and strict resource-bound regressions; additional real compressed variants needed |
+| HPI/HPB + ACMP | Native index/member reads, bounded backward decompression; unavailable, oversized, or invalid compressed members reported and skipped individually | Both reported Untold save/sound entries, unknown namespaces, truncation, decode limits, partial rerun preservation, and structural failure fixtures; additional real compressed variants needed |
 | FARC/SIR0 | Structural outer/FAT tables | Generic synthetic fixture; game-specific variants need validation |
 | STEX | Combined GL type/format, named base-mip payload | Synthetic channels, orientation, bounds and hash-span tests |
 | CGFX | Typed image TXOB descriptor/pointers | Synthetic models; one bad entry preserves valid entries and reports an issue |
@@ -24,6 +24,9 @@ are not tests of this implementation.
 Unsupported entries appear in the issue list. Previously extracted masters
 that a partial rerun does not rediscover are retained with preservation issues.
 Do not interpret a nonzero texture count as proof that every asset was extracted.
+An unavailable texture member remains an explicit omission in the report.
+Malformed index tables/names, missing HPB files, cancellation, job-wide resource
+limits, and runs finding no supported textures still stop publication.
 
 Classification coverage is reported independently from accuracy. No complete
 human-verified gold dataset or exhaustive English entity-name database has been
