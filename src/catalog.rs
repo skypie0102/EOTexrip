@@ -122,12 +122,31 @@ pub struct Decision {
     pub needs_review: bool,
     pub evidence: Vec<Evidence>,
 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PngOrientation {
+    // Catalogs made by alpha.1 have no orientation field.
+    #[default]
+    LegacyFlipped,
+    Upright,
+}
+impl PngOrientation {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::LegacyFlipped => "Legacy flipped",
+            Self::Upright => "Upright",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Override {
     pub category: Option<Category>,
     pub name: Option<String>,
     #[serde(default)]
     pub confirmed: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub png_orientation: Option<PngOrientation>,
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Overrides {
@@ -155,6 +174,8 @@ pub struct Asset {
     pub runtime_hashes: Vec<String>,
     pub hash_evidence: String,
     pub image_digest: String,
+    #[serde(default)]
+    pub png_orientation: PngOrientation,
     pub category: Decision,
     pub name: String,
     pub name_basis: String,

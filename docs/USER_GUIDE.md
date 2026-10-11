@@ -71,6 +71,28 @@ replacement behavior still needs validation on real game data.
 mappings. They are excluded from deployment and should be excluded from the
 normal emulator upscale batch.
 
+## Upgrade an alpha.1 workspace
+
+Use alpha.2 to **Load workspace**, then **Rebuild emulator pack**. You do not
+need to extract the ROM again. Untouched alpha.1 PNGs are flipped upright once;
+names, categories, and runtime hash mappings remain attached to the same assets.
+An otherwise unchanged original that you already flipped is detected and kept.
+
+If a legacy master has edited pixels or was upscaled, its bytes are preserved.
+The deployment copy is flipped upright, and the asset appears in the review
+list as **Legacy flipped**. To make its editable master upright too, flip it
+vertically in your image editor, choose **PNG orientation: Upright** in EO-Texrip,
+then queue and save the correction. If you already made an edited master
+upright, confirm **Upright** without flipping it again. Orientation choices apply
+to the selected image, even when applying a category to the whole source model.
+
+Copy the rebuilt deployment folder into Azahar again. Keep
+`flip_png_files=true`: Azahar applies its GPU row reversal when loading the
+upright PNG. Changing this setting would undo the correction in the emulator.
+
+For Untold 1, retry extraction with alpha.2. Out-of-payload `SAVEDATA/*.SAV`
+entries are reported and skipped; texture members still require valid HPB ranges.
+
 ## Command line
 
 ```text

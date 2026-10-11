@@ -10,7 +10,13 @@ pub struct Member {
     pub expanded_size: usize,
 }
 
-pub fn hpi(data: &[u8], hpb_size: u64) -> Result<Vec<Member>> {
+#[derive(Debug)]
+pub struct HpiIndex {
+    pub members: Vec<Member>,
+    pub skipped_saves: Vec<String>,
+}
+
+pub fn hpi(data: &[u8], hpb_size: u64) -> Result<HpiIndex> {
     ensure!(bytes(data, 0, 4)? == b"HPIH", "not an HPI index");
     let buckets = u16le(data, 18)? as usize;
     let count = u16le(data, 20)? as usize;
@@ -18,18 +24,24 @@ pub fn hpi(data: &[u8], hpb_size: u64) -> Result<Vec<Member>> {
     let names = table + count * 16;
     bytes(data, table, count * 16)?;
     let mut out = Vec::with_capacity(count);
+    let mut skipped_saves = vec![];
     for i in 0..count {
         let at = table + i * 16;
         let name = logical_path(&cstring(data, names + u32le(data, at)? as usize, 4096)?)?;
         let offset = u32le(data, at + 4)? as usize;
         let size = u32le(data, at + 8)? as usize;
         let expanded_size = u32le(data, at + 12)? as usize;
-        ensure!(
-            (offset as u64)
-                .checked_add(size as u64)
-                .is_some_and(|n| n <= hpb_size),
-            "HPI member {name} outside HPB"
-        );
+        let bounded = (offset as u64)
+            .checked_add(size as u64)
+            .is_some_and(|n| n <= hpb_size);
+        let lower = name.to_ascii_lowercase();
+        // Writable save entries can be indexed without an HPB payload. Only
+        // this exact non-texture namespace is exempt from member bounds.
+        if !bounded && lower.starts_with("savedata/") && lower.ends_with(".sav") {
+            skipped_saves.push(name);
+            continue;
+        }
+        ensure!(bounded, "HPI member {name} outside HPB");
         ensure!(
             size <= MAX_RESOURCE && expanded_size <= MAX_RESOURCE,
             "HPI member {name} exceeds resource limit"
@@ -41,7 +53,10 @@ pub fn hpi(data: &[u8], hpb_size: u64) -> Result<Vec<Member>> {
             expanded_size,
         });
     }
-    Ok(out)
+    Ok(HpiIndex {
+        members: out,
+        skipped_saves,
+    })
 }
 
 pub fn acmp(data: &[u8]) -> Result<Vec<u8>> {
